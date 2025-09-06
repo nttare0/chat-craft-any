@@ -2,41 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* AI Assistant Design System - Modern, Professional, Beautiful */
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
+    /* Base Colors - Deep space theme */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    
+    /* Glass morphism surfaces */
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --card-glass: 240 10% 3.9% / 0.8;
+    
+    /* AI Brand Colors */
+    --primary: 240 100% 65%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 240 100% 75%;
+    
+    /* Secondary AI accent */
+    --secondary: 260 100% 70%;
+    --secondary-foreground: 0 0% 100%;
+    
+    /* Muted tones */
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    
+    /* Accent highlights */
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    
+    /* Message colors */
+    --user-message: 240 100% 65%;
+    --ai-message: 240 3.7% 15.9%;
+    --ai-message-foreground: 0 0% 98%;
+    
+    /* Interactive elements */
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 100% 65%;
+    
+    /* Error states */
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 98%;
+    
+    /* Popover */
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+    
+    /* AI Assistant Specific Design Tokens */
+    --gradient-primary: linear-gradient(135deg, hsl(240 100% 65%), hsl(260 100% 70%));
+    --gradient-secondary: linear-gradient(135deg, hsl(240 3.7% 15.9%), hsl(240 10% 3.9%));
+    --gradient-glow: linear-gradient(135deg, hsl(240 100% 65% / 0.1), hsl(260 100% 70% / 0.1));
+    
+    /* Shadows and effects */
+    --shadow-ai: 0 10px 30px -10px hsl(240 100% 65% / 0.3);
+    --shadow-glow: 0 0 40px hsl(240 100% 75% / 0.4);
+    --shadow-glass: 0 8px 32px hsl(240 10% 3.9% / 0.7);
+    
+    /* Animations */
+    --transition-ai: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-glow: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
 
@@ -100,6 +128,59 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground min-h-screen;
+    background-image: radial-gradient(ellipse at top, hsl(240 100% 65% / 0.1), transparent 50%),
+                      radial-gradient(ellipse at bottom, hsl(260 100% 70% / 0.1), transparent 50%);
+  }
+}
+
+@layer components {
+  /* AI Chat animations */
+  .message-slide-in {
+    animation: slideInUp 0.3s ease-out;
+  }
+  
+  .typing-indicator {
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  
+  .glow-pulse {
+    animation: glowPulse 2s ease-in-out infinite alternate;
+  }
+  
+  /* Glass morphism effect */
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    background-color: hsla(240, 10%, 3.9%, 0.75);
+    border: 1px solid hsla(240, 3.7%, 15.9%, 0.3);
+  }
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes glowPulse {
+  from {
+    box-shadow: 0 0 20px hsl(240 100% 65% / 0.3);
+  }
+  to {
+    box-shadow: 0 0 40px hsl(240 100% 65% / 0.6), 0 0 60px hsl(260 100% 70% / 0.4);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
   }
 }
