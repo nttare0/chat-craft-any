@@ -2,23 +2,44 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Mic, Send, Volume2, VolumeX } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Mic, Send, Volume2, VolumeX, Settings, Brain, Globe, Code, Calculator, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/components/ui/use-toast';
+import AISettings from '@/components/AISettings';
+import ResearchDisplay from '@/components/ResearchDisplay';
+import { EnhancedAIService } from '@/services/EnhancedAIService';
+import { KNOWLEDGE_DOMAINS } from '@/types/ai-models';
 
 interface Message {
   id: string;
   text: string;
   isUser: boolean;
   timestamp: Date;
+  model?: string;
+  domain?: string;
+  researchData?: any;
+  calculations?: Array<{
+    formula: string;
+    result: string;
+    explanation: string;
+  }>;
+  sources?: Array<{
+    title: string;
+    url: string;
+    snippet: string;
+  }>;
 }
 
 const AIAssistant = () => {
+  const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hello! I'm your AI Assistant. I can help you with various tasks and answer your questions. You can type or use voice input to communicate with me.",
+      text: "Hello! I'm your Enhanced AI Assistant with advanced capabilities in mathematics, computer science, machine learning, and ethical hacking. I can access the internet for real-time research and perform complex calculations. Configure your API keys in settings to unlock my full potential!",
       isUser: false,
       timestamp: new Date(),
+      model: 'Enhanced AI',
     },
   ]);
   const [input, setInput] = useState('');
@@ -26,6 +47,9 @@ const AIAssistant = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speechEnabled, setSpeechEnabled] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [selectedDomain, setSelectedDomain] = useState<string>('general');
+  const [useInternet, setUseInternet] = useState(false);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -72,41 +96,78 @@ const AIAssistant = () => {
       text: input.trim(),
       isUser: true,
       timestamp: new Date(),
+      domain: selectedDomain,
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const userInput = input.trim();
     setInput('');
     setIsLoading(true);
 
-    // Simulate AI response (replace with actual AI API call)
-    setTimeout(() => {
+    try {
+      // Use enhanced AI service
+      const response = await EnhancedAIService.enhancedQuery(
+        userInput, 
+        selectedDomain === 'general' ? undefined : selectedDomain,
+        useInternet
+      );
+
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: generateAIResponse(userMessage.text),
+        text: response.content,
         isUser: false,
         timestamp: new Date(),
+        model: response.model,
+        domain: selectedDomain,
+        calculations: response.calculations,
+        sources: response.sources,
       };
 
       setMessages(prev => [...prev, aiResponse]);
-      setIsLoading(false);
 
       // Speak the response
       if (speechEnabled && synthRef.current) {
-        speakText(aiResponse.text);
+        speakText(response.content);
       }
-    }, 1000 + Math.random() * 2000); // Simulate network delay
+
+      toast({
+        title: "Response Generated",
+        description: `Using ${response.model} with ${selectedDomain} domain`,
+      });
+
+    } catch (error) {
+      console.error('AI query failed:', error);
+      
+      // Fallback response
+      const fallbackResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "I apologize, but I'm having trouble connecting to the AI services. Please check your API keys in settings and ensure you have a stable internet connection. I can still help with basic mathematical calculations and provide general assistance.",
+        isUser: false,
+        timestamp: new Date(),
+        model: 'Fallback Mode',
+      };
+
+      setMessages(prev => [...prev, fallbackResponse]);
+      
+      toast({
+        title: "Connection Error",
+        description: "Using fallback mode. Configure API keys for full capabilities.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const generateAIResponse = (userInput: string): string => {
-    const responses = [
-      "That's an interesting question! Let me think about that. Based on my understanding, I would suggest considering multiple perspectives on this topic.",
-      "I appreciate you sharing that with me. From what I can analyze, there are several approaches we could explore together.",
-      "Thank you for asking! This is a complex topic that involves various factors. Let me break it down for you.",
-      "I understand what you're looking for. Based on current knowledge and best practices, here's what I would recommend.",
-      "That's a great point you've raised. Let me provide some insights that might help clarify things for you.",
-    ];
-    
-    return responses[Math.floor(Math.random() * responses.length)];
+  const getDomainIcon = (domain: string) => {
+    switch (domain) {
+      case 'mathematics': return <Calculator className="h-4 w-4" />;
+      case 'computer-science': return <Code className="h-4 w-4" />;
+      case 'machine-learning': return <Brain className="h-4 w-4" />;
+      case 'ethical-hacking': return <Zap className="h-4 w-4" />;
+      case 'research': return <Globe className="h-4 w-4" />;
+      default: return <Brain className="h-4 w-4" />;
+    }
   };
 
   const speakText = (text: string) => {
@@ -148,22 +209,54 @@ const AIAssistant = () => {
               <span className="text-lg font-bold text-primary-foreground">AI</span>
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">AI Assistant</h1>
-              <p className="text-sm text-muted-foreground">Powered by advanced AI technology</p>
+              <h1 className="text-xl font-semibold text-foreground">Enhanced AI Assistant</h1>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">Advanced AI with Internet Access</p>
+                {selectedDomain !== 'general' && (
+                  <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                    {getDomainIcon(selectedDomain)}
+                    {KNOWLEDGE_DOMAINS.find(d => d.id === selectedDomain)?.name}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
           
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleSpeech}
-            className={cn(
-              "transition-colors",
-              speechEnabled ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {speechEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setUseInternet(!useInternet)}
+              className={cn(
+                "transition-colors text-xs",
+                useInternet ? "text-primary hover:text-primary/80 bg-primary/10" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Globe className="h-4 w-4 mr-1" />
+              {useInternet ? 'Internet: ON' : 'Internet: OFF'}
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowSettings(true)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <Settings className="h-5 w-5" />
+            </Button>
+            
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSpeech}
+              className={cn(
+                "transition-colors",
+                speechEnabled ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {speechEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -187,7 +280,49 @@ const AIAssistant = () => {
                       : "glass border border-border/20 text-ai-message-foreground mr-4"
                   )}
                 >
+                  <div className="flex items-center gap-2 mb-2">
+                    {!message.isUser && message.model && (
+                      <Badge variant="secondary" className="text-xs">
+                        {message.model}
+                      </Badge>
+                    )}
+                    {message.domain && message.domain !== 'general' && (
+                      <Badge variant="outline" className="text-xs flex items-center gap-1">
+                        {getDomainIcon(message.domain)}
+                        {KNOWLEDGE_DOMAINS.find(d => d.id === message.domain)?.name}
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-sm leading-relaxed">{message.text}</p>
+                  
+                  {/* Display calculations if available */}
+                  {message.calculations && message.calculations.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {message.calculations.map((calc, idx) => (
+                        <div key={idx} className="bg-background/20 rounded-lg p-2">
+                          <div className="font-mono text-xs mb-1">{calc.formula}</div>
+                          <div className="text-sm font-semibold text-primary">Result: {calc.result}</div>
+                          <div className="text-xs text-muted-foreground">{calc.explanation}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Display sources if available */}
+                  {message.sources && message.sources.length > 0 && (
+                    <div className="mt-3">
+                      <div className="text-xs text-muted-foreground mb-2">Sources:</div>
+                      <div className="space-y-1">
+                        {message.sources.slice(0, 3).map((source, idx) => (
+                          <div key={idx} className="text-xs bg-background/20 rounded p-1">
+                            <div className="font-medium">{source.title}</div>
+                            <div className="text-muted-foreground truncate">{new URL(source.url).hostname}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
                   <span className="text-xs opacity-70 mt-2 block">
                     {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -223,7 +358,7 @@ const AIAssistant = () => {
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your message or use voice input..."
+                placeholder={`Ask me about ${selectedDomain !== 'general' ? KNOWLEDGE_DOMAINS.find(d => d.id === selectedDomain)?.name.toLowerCase() : 'anything'}...`}
                 className="pr-12 bg-muted/30 border-border/40 focus:border-primary/50 transition-colors"
                 disabled={isLoading}
               />
@@ -267,6 +402,14 @@ const AIAssistant = () => {
           )}
         </div>
       </footer>
+
+      {/* AI Settings Modal */}
+      <AISettings
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        selectedDomain={selectedDomain}
+        setSelectedDomain={setSelectedDomain}
+      />
     </div>
   );
 };
