@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import AISettings from '@/components/AISettings';
 import ResearchDisplay from '@/components/ResearchDisplay';
+import SpeechSettings from '@/components/SpeechSettings';
 import { FreeAIService } from '@/services/FreeAIService';
 import { KNOWLEDGE_DOMAINS } from '@/types/ai-models';
 
@@ -48,39 +49,127 @@ const AIAssistant = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [speechEnabled, setSpeechEnabled] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSpeechSettings, setShowSpeechSettings] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState<string>('general');
   const [useInternet, setUseInternet] = useState(false);
+  const [speechLanguage, setSpeechLanguage] = useState('en-US');
+  const [voiceSettings, setVoiceSettings] = useState({
+    rate: 0.9,
+    pitch: 1,
+    volume: 0.8
+  });
+  const [isRecognitionSupported, setIsRecognitionSupported] = useState(false);
+  const [isSpeechSupported, setIsSpeechSupported] = useState(false);
+  const [continuousListening, setContinuousListening] = useState(false);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
-  // Initialize speech recognition
+  // Initialize speech recognition and synthesis
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Check speech recognition support
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       if (SpeechRecognition) {
+        setIsRecognitionSupported(true);
         recognitionRef.current = new SpeechRecognition();
-        recognitionRef.current.continuous = false;
-        recognitionRef.current.interimResults = false;
-        recognitionRef.current.lang = 'en-US';
+        recognitionRef.current.continuous = continuousListening || wakeWordEnabled;
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.lang = speechLanguage;
 
-        recognitionRef.current.onstart = () => setIsListening(true);
-        recognitionRef.current.onend = () => setIsListening(false);
-        
-        recognitionRef.current.onresult = (event) => {
-          const transcript = event.results[0][0].transcript;
-          setInput(transcript);
+        recognitionRef.current.onstart = () => {
+          setIsListening(true);
+          toast({
+            title: "Listening",
+            description: "Speak now...",
+            duration: 2000,
+          });
         };
 
-        recognitionRef.current.onerror = () => {
+        recognitionRef.current.onend = () => {
           setIsListening(false);
         };
+        
+        recognitionRef.current.onresult = (event) => {
+          const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+          
+          // Check for wake words
+          if (wakeWordEnabled && (
+            transcript.includes('hey ai') || 
+            transcript.includes('hello ai') || 
+            transcript.includes('computer') ||
+            transcript.includes('assistant')
+          )) {
+            setInput(transcript.replace(/(hey ai|hello ai|computer|assistant)/gi, '').trim());
+            toast({
+              title: "Wake Word Detected",
+              description: "I'm listening...",
+              duration: 1000,
+            });
+            return;
+          }
+          
+          if (event.results[event.results.length - 1].isFinal) {
+            setInput(transcript);
+            // Auto-submit if transcript is complete and not in continuous mode
+            if (transcript.trim() && !continuousListening) {
+              setTimeout(() => {
+                handleSubmit();
+              }, 500);
+            }
+          }
+        };
+
+        recognitionRef.current.onerror = (event) => {
+          setIsListening(false);
+          console.error('Speech recognition error:', event.error);
+          
+          let errorMessage = "Speech recognition failed";
+          switch (event.error) {
+            case 'no-speech':
+              errorMessage = "No speech detected. Please try again.";
+              break;
+            case 'audio-capture':
+              errorMessage = "Microphone not available.";
+              break;
+            case 'not-allowed':
+              errorMessage = "Microphone permission denied.";
+              break;
+            case 'network':
+              errorMessage = "Network error. Check your connection.";
+              break;
+          }
+          
+          toast({
+            title: "Speech Error",
+            description: errorMessage,
+            variant: "destructive",
+          });
+        };
+      } else {
+        console.warn('Speech recognition not supported in this browser');
       }
 
-      synthRef.current = window.speechSynthesis;
+      // Check speech synthesis support
+      if (window.speechSynthesis) {
+        setIsSpeechSupported(true);
+        synthRef.current = window.speechSynthesis;
+        
+        // Ensure voices are loaded
+        const loadVoices = () => {
+          const voices = synthRef.current?.getVoices() || [];
+          console.log('Available voices:', voices.length);
+        };
+        
+        if (synthRef.current.onvoiceschanged !== undefined) {
+          synthRef.current.onvoiceschanged = loadVoices;
+        }
+        loadVoices();
+      }
     }
-  }, []);
+  }, [speechLanguage]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -167,23 +256,101 @@ const AIAssistant = () => {
   };
 
   const speakText = (text: string) => {
-    if (synthRef.current && speechEnabled) {
+    if (synthRef.current && speechEnabled && isSpeechSupported) {
+      // Cancel any ongoing speech
+      synthRef.current.cancel();
+      
       setIsSpeaking(true);
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      utterance.pitch = 1;
-      utterance.volume = 0.8;
       
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+      // Apply voice settings
+      utterance.rate = voiceSettings.rate;
+      utterance.pitch = voiceSettings.pitch;
+      utterance.volume = voiceSettings.volume;
       
-      synthRef.current.speak(utterance);
+      // Select appropriate voice based on language
+      const voices = synthRef.current.getVoices();
+      const preferredVoice = voices.find(voice => 
+        voice.lang.startsWith(speechLanguage.split('-')[0]) && voice.localService
+      ) || voices.find(voice => 
+        voice.lang.startsWith(speechLanguage.split('-')[0])
+      ) || voices[0];
+      
+      if (preferredVoice) {
+        utterance.voice = preferredVoice;
+        utterance.lang = preferredVoice.lang;
+      }
+      
+      utterance.onstart = () => {
+        setIsSpeaking(true);
+      };
+      
+      utterance.onend = () => {
+        setIsSpeaking(false);
+      };
+      
+      utterance.onerror = (event) => {
+        setIsSpeaking(false);
+        console.error('Speech synthesis error:', event.error);
+        toast({
+          title: "Speech Error",
+          description: "Failed to speak the response",
+          variant: "destructive",
+        });
+      };
+      
+      // Split long text into chunks for better performance on mobile devices
+      const chunks = text.match(/.{1,200}(?:\s|$)/g) || [text];
+      
+      chunks.forEach((chunk, index) => {
+        setTimeout(() => {
+          if (speechEnabled && synthRef.current) {
+            const chunkUtterance = new SpeechSynthesisUtterance(chunk);
+            chunkUtterance.rate = utterance.rate;
+            chunkUtterance.pitch = utterance.pitch;
+            chunkUtterance.volume = utterance.volume;
+            chunkUtterance.voice = utterance.voice;
+            chunkUtterance.lang = utterance.lang;
+            
+            if (index === chunks.length - 1) {
+              chunkUtterance.onend = () => setIsSpeaking(false);
+            }
+            
+            synthRef.current.speak(chunkUtterance);
+          }
+        }, index * 100);
+      });
     }
   };
 
-  const handleVoiceInput = () => {
+  const handleVoiceInput = async () => {
+    if (!isRecognitionSupported) {
+      toast({
+        title: "Not Supported",
+        description: "Speech recognition is not supported in this browser",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (recognitionRef.current && !isListening) {
-      recognitionRef.current.start();
+      try {
+        // Request microphone permission if needed
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        
+        // Update language before starting
+        recognitionRef.current.lang = speechLanguage;
+        recognitionRef.current.start();
+      } catch (error) {
+        console.error('Microphone access denied:', error);
+        toast({
+          title: "Microphone Access",
+          description: "Please allow microphone access to use voice input",
+          variant: "destructive",
+        });
+      }
+    } else if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
     }
   };
 
@@ -244,11 +411,12 @@ const AIAssistant = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={toggleSpeech}
+              onClick={() => setShowSpeechSettings(true)}
               className={cn(
                 "transition-colors",
                 speechEnabled ? "text-primary hover:text-primary/80" : "text-muted-foreground hover:text-foreground"
               )}
+              title="Speech Settings"
             >
               {speechEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
             </Button>
@@ -363,13 +531,18 @@ const AIAssistant = () => {
                 variant="ghost"
                 size="icon"
                 onClick={handleVoiceInput}
-                disabled={isListening || isLoading}
+                disabled={!isRecognitionSupported || isLoading}
                 className={cn(
-                  "absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8",
-                  isListening && "text-primary animate-pulse"
+                  "absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 transition-all duration-200",
+                  isListening && "text-primary animate-pulse scale-110",
+                  !isRecognitionSupported && "opacity-50 cursor-not-allowed"
                 )}
+                title={isRecognitionSupported ? (isListening ? "Stop listening" : "Start voice input") : "Voice input not supported"}
               >
-                <Mic className="h-4 w-4" />
+                <Mic className={cn(
+                  "h-4 w-4 transition-transform",
+                  isListening && "scale-125"
+                )} />
               </Button>
             </div>
             
@@ -384,16 +557,36 @@ const AIAssistant = () => {
           </form>
           
           {isListening && (
-            <div className="flex items-center justify-center mt-2 text-sm text-primary">
-              <div className="w-2 h-2 bg-primary rounded-full animate-pulse mr-2"></div>
-              Listening... Speak now
+            <div className="flex items-center justify-center mt-2 text-sm text-primary animate-pulse">
+              <div className="flex space-x-1 mr-2">
+                <div className="w-1 h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-1 h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-1 h-4 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+              🎤 Listening... Speak clearly
             </div>
           )}
           
           {isSpeaking && (
-            <div className="flex items-center justify-center mt-2 text-sm text-secondary">
-              <div className="w-2 h-2 bg-secondary rounded-full animate-pulse mr-2"></div>
-              AI is speaking...
+            <div className="flex items-center justify-center mt-2 text-sm text-secondary animate-pulse">
+              <div className="flex space-x-1 mr-2">
+                <div className="w-1 h-3 bg-secondary rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-1 h-3 bg-secondary rounded-full animate-bounce" style={{ animationDelay: '100ms' }}></div>
+                <div className="w-1 h-3 bg-secondary rounded-full animate-bounce" style={{ animationDelay: '200ms' }}></div>
+              </div>
+              🔊 AI is speaking...
+            </div>
+          )}
+          
+          {!isRecognitionSupported && (
+            <div className="text-center mt-2 text-xs text-muted-foreground">
+              Voice input not supported in this browser. Try Chrome, Edge, or Safari.
+            </div>
+          )}
+          
+          {!isSpeechSupported && speechEnabled && (
+            <div className="text-center mt-2 text-xs text-muted-foreground">
+              Text-to-speech not supported in this browser.
             </div>
           )}
         </div>
@@ -405,6 +598,24 @@ const AIAssistant = () => {
         onClose={() => setShowSettings(false)}
         selectedDomain={selectedDomain}
         setSelectedDomain={setSelectedDomain}
+      />
+
+      {/* Speech Settings Modal */}
+      <SpeechSettings
+        isOpen={showSpeechSettings}
+        onClose={() => setShowSpeechSettings(false)}
+        speechLanguage={speechLanguage}
+        setSpeechLanguage={setSpeechLanguage}
+        voiceSettings={voiceSettings}
+        setVoiceSettings={setVoiceSettings}
+        speechEnabled={speechEnabled}
+        setSpeechEnabled={setSpeechEnabled}
+        isRecognitionSupported={isRecognitionSupported}
+        isSpeechSupported={isSpeechSupported}
+        continuousListening={continuousListening}
+        setContinuousListening={setContinuousListening}
+        wakeWordEnabled={wakeWordEnabled}
+        setWakeWordEnabled={setWakeWordEnabled}
       />
     </div>
   );
