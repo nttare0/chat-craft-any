@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
 import AISettings from '@/components/AISettings';
 import ResearchDisplay from '@/components/ResearchDisplay';
-import { EnhancedAIService } from '@/services/EnhancedAIService';
+import { FreeAIService } from '@/services/FreeAIService';
 import { KNOWLEDGE_DOMAINS } from '@/types/ai-models';
 
 interface Message {
@@ -36,10 +36,10 @@ const AIAssistant = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hello! I'm your Enhanced AI Assistant with advanced capabilities in mathematics, computer science, machine learning, and ethical hacking. I can access the internet for real-time research and perform complex calculations. Configure your API keys in settings to unlock my full potential!",
+      text: "Hello! I'm your Free AI Assistant! I can help with mathematics, computer science basics, programming concepts, and answer general questions. I have built-in knowledge and can perform calculations. Try asking me anything!",
       isUser: false,
       timestamp: new Date(),
-      model: 'Enhanced AI',
+      model: 'Free AI',
     },
   ]);
   const [input, setInput] = useState('');
@@ -105,12 +105,8 @@ const AIAssistant = () => {
     setIsLoading(true);
 
     try {
-      // Use enhanced AI service
-      const response = await EnhancedAIService.enhancedQuery(
-        userInput, 
-        selectedDomain === 'general' ? undefined : selectedDomain,
-        useInternet
-      );
+      // Use free AI service
+      const response = await FreeAIService.query(userInput);
 
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
@@ -141,7 +137,7 @@ const AIAssistant = () => {
       // Fallback response
       const fallbackResponse: Message = {
         id: (Date.now() + 1).toString(),
-        text: "I apologize, but I'm having trouble connecting to the AI services. Please check your API keys in settings and ensure you have a stable internet connection. I can still help with basic mathematical calculations and provide general assistance.",
+        text: "I'm working with my built-in knowledge base right now. I can help with mathematics, basic computer science concepts, programming questions, and general knowledge. What would you like to learn about?",
         isUser: false,
         timestamp: new Date(),
         model: 'Fallback Mode',
@@ -151,7 +147,7 @@ const AIAssistant = () => {
       
       toast({
         title: "Connection Error",
-        description: "Using fallback mode. Configure API keys for full capabilities.",
+        description: "Using built-in knowledge. I'm ready to help you learn!",
         variant: "destructive",
       });
     } finally {
@@ -209,9 +205,9 @@ const AIAssistant = () => {
               <span className="text-lg font-bold text-primary-foreground">AI</span>
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">Enhanced AI Assistant</h1>
+              <h1 className="text-xl font-semibold text-foreground">Free AI Assistant</h1>
               <div className="flex items-center gap-2">
-                <p className="text-sm text-muted-foreground">Advanced AI with Internet Access</p>
+                <p className="text-sm text-muted-foreground">Smart AI with Built-in Knowledge</p>
                 {selectedDomain !== 'general' && (
                   <Badge variant="secondary" className="text-xs flex items-center gap-1">
                     {getDomainIcon(selectedDomain)}
